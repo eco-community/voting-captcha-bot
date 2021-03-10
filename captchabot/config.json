@@ -1,0 +1,6 @@
+{
+  "token": "bot_token",
+  "channels": [
+    channel_id
+  ]
+}
