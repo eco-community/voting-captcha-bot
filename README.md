@@ -7,6 +7,7 @@ Bot which is able to protect voting contest from spammer abuse
    Enter the name of the application, this name will not appear anywhere
 2. Go to your app and click to "Bot" section and click "Add Bot" button then "Yes, do it!"
 3. Click to "Copy" button and replace "bot_token" in the configuration file with token you have copied
+4. Create oauth2 link with at least `273472` permissions
 
 
 # Getting channel id

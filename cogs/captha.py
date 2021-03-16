@@ -54,7 +54,14 @@ class CaptchaCog(commands.Cog, name="captcha"):  # type: ignore[call-arg]
         if reaction.message.id in self.messages.keys():
             captcha, key = self.get_captcha()
             file = discord.File(captcha, filename="captcha.png")
-            await user.send("Enter the letters on the image to confirm vote, you have 5 minutes to answer.", file=file)
+            try:
+                await user.send(
+                    "Enter the letters on the image to confirm vote, you have 5 minutes to answer.", file=file
+                )
+            except discord.errors.Forbidden:
+                # remove reaction from users that forbid private messages
+                await reaction.remove(user)
+                return
 
             try:
                 answer = await self.bot.wait_for(
