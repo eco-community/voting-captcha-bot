@@ -1,5 +1,7 @@
 # EcoVotingCaptchaBot
 
+Bot which is able to protect voting contest from spammer abuse
+
 # Creating a bot token
 1. Go to https://discord.com/developers/applications and click "New Application"
    Enter the name of the application, this name will not appear anywhere

@@ -1,25 +1,26 @@
+import io
+import asyncio
+import platform
+from random import shuffle, randint
+from string import ascii_lowercase, ascii_uppercase, digits
+
+import discord
 from discord.ext import commands
 from operator import itemgetter
-from random import shuffle, randint
 from PIL import Image, ImageDraw, ImageFont
-from string import ascii_lowercase, ascii_uppercase, digits
-from datetime import datetime, timedelta
-import asyncio
-import discord
-import json
-import io
+
+import config
 
 
-class CaptchaCog(commands.Cog, name='captcha'):
+class CaptchaCog(commands.Cog, name="captcha"):  # type: ignore[call-arg]
     def __init__(self, bot: commands.Bot):
         self.bot = bot
-        config = json.load(open("config.json"))
-        self.messages = {}
-        self.channels = config["channels"]
+        self.channels = config.VOTING_CHANNELS
         self.letters = list(ascii_uppercase + ascii_lowercase + digits)
         del self.letters[self.letters.index("I")]
         del self.letters[self.letters.index("l")]
-        self.waiting = []
+        self.messages = {}  # type: ignore[var-annotated]
+        self.waiting = []  # type: ignore[var-annotated]
 
     def get_captcha(self):
         letters = self.letters.copy()
@@ -28,7 +29,12 @@ class CaptchaCog(commands.Cog, name='captcha'):
         image = Image.new("RGBA", (400, 100), (255, 255, 255, 0))
         draw = ImageDraw.Draw(image)
         x, y = image.width, image.height
-        draw.text((200 / 2, 50 / 2), key, (255, 255, 255, 255), ImageFont.truetype("arial", 50))
+        platform_running = platform.system()
+        if platform_running in ["Windows", "Linux"]:
+            font_path = "arial"
+        else:
+            font_path = "/Library/Fonts/Arial.ttf"
+        draw.text((200 / 2, 50 / 2), key, (255, 255, 255, 255), ImageFont.truetype(font_path, 50))
 
         rx, ry = lambda: randint(0, x), lambda: randint(0, y)
         for i in range(15):
@@ -43,21 +49,26 @@ class CaptchaCog(commands.Cog, name='captcha'):
 
     @commands.Cog.listener()
     async def on_reaction_add(self, reaction: discord.Reaction, user: discord.Member):
-        if isinstance(user, discord.User) or reaction.message.guild is None: return
+        if isinstance(user, discord.User) or reaction.message.guild is None:
+            return
         if reaction.message.id in self.messages.keys():
             captcha, key = self.get_captcha()
-            file = discord.File(captcha, filename='captcha.png')
+            file = discord.File(captcha, filename="captcha.png")
             await user.send("Enter the letters on the image to confirm vote, you have 5 minutes to answer.", file=file)
 
             try:
-                answer = await self.bot.wait_for("message", check=lambda m: m.guild is None and m.author == user, timeout=600, )
+                answer = await self.bot.wait_for(
+                    "message",
+                    check=lambda m: m.guild is None and m.author == user,
+                    timeout=600,
+                )
                 if answer.content == key:
-                    await user.send("Success!")
+                    await user.send("Success! Your vote was recorded")
                 else:
-                    await user.send("You have failed the captcha, try again.")
+                    await user.send("You have failed the captcha, your vote was removed")
                     await reaction.remove(user)
             except asyncio.TimeoutError:
-                await user.send("You have failed the captcha, try again.")
+                await user.send("You have failed the captcha, your vote was removed")
                 return
 
     @commands.Cog.listener()
@@ -65,9 +76,9 @@ class CaptchaCog(commands.Cog, name='captcha'):
         if message.channel.id in self.channels and message.channel.id not in map(itemgetter(0), self.waiting):
             self.waiting.append((message.channel.id, message.id))
         elif message.channel.id in self.channels:
-            for channel, id in self.waiting:
+            for channel, _id in self.waiting:
                 if channel == message.channel.id:
-                    self.messages[message.id] = id
+                    self.messages[message.id] = _id
                     break
 
     @commands.Cog.listener()
