@@ -24,6 +24,5 @@ Bot which is able to protect voting contest from spammer abuse
 
 
 # How to use:
-1. Send a post of contest in the channel you specified
-2. Right after this post create another one for voting and add reactions to it accordingly
-3. When contest is over - delete voting message
+1. Create a new post in the voting channel with #votehere tag
+2. When the contest is over remove #votehere tag

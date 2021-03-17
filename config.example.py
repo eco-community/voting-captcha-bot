@@ -5,3 +5,4 @@ TOKEN = ""
 VOTING_CHANNELS = [11111]
 
 SENTRY_API_KEY = "https://xxxxxx@xxxxx.ingest.sentry.io/xxxxxx"
+VOTING_TAG = "#votehere"

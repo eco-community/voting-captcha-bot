@@ -1,12 +1,13 @@
 import io
 import asyncio
+import logging
 import platform
+from typing import Set
 from random import shuffle, randint
 from string import ascii_lowercase, ascii_uppercase, digits
 
 import discord
 from discord.ext import commands
-from operator import itemgetter
 from PIL import Image, ImageDraw, ImageFont
 
 import config
@@ -19,8 +20,7 @@ class CaptchaCog(commands.Cog, name="captcha"):  # type: ignore[call-arg]
         self.letters = list(ascii_uppercase + ascii_lowercase + digits)
         del self.letters[self.letters.index("I")]
         del self.letters[self.letters.index("l")]
-        self.messages = {}  # type: ignore[var-annotated]
-        self.waiting = []  # type: ignore[var-annotated]
+        self.messages: Set[int] = set()
 
     def get_captcha(self):
         letters = self.letters.copy()
@@ -48,10 +48,22 @@ class CaptchaCog(commands.Cog, name="captcha"):  # type: ignore[call-arg]
         return buffer, key
 
     @commands.Cog.listener()
+    async def on_raw_message_edit(self, payload: discord.RawMessageUpdateEvent):
+        if payload.channel_id in self.channels:
+            if payload.message_id in self.messages and config.VOTING_TAG not in payload.data["content"]:
+                # voting tag was removed from message, we should stop voting process on it
+                self.messages.remove(payload.message_id)
+                logging.debug(f"Message id:{payload.message_id} was removed from voting")
+            elif payload.message_id not in self.messages and config.VOTING_TAG in payload.data["content"]:
+                logging.debug(f"Message id:{payload.message_id} was added to voting")
+                # voting tag was applied to message, we should start voting process on it
+                self.messages.add(payload.message_id)
+
+    @commands.Cog.listener()
     async def on_reaction_add(self, reaction: discord.Reaction, user: discord.Member):
         if isinstance(user, discord.User) or reaction.message.guild is None:
             return
-        if reaction.message.id in self.messages.keys():
+        if reaction.message.id in self.messages:
             captcha, key = self.get_captcha()
             file = discord.File(captcha, filename="captcha.png")
             try:
@@ -69,7 +81,7 @@ class CaptchaCog(commands.Cog, name="captcha"):  # type: ignore[call-arg]
                     check=lambda m: m.guild is None and m.author == user,
                     timeout=600,
                 )
-                if answer.content == key:
+                if answer.content.lower() == key.lower():
                     await user.send("Success! Your vote was recorded")
                 else:
                     await user.send("You have failed the captcha, your vote was removed")
@@ -80,18 +92,10 @@ class CaptchaCog(commands.Cog, name="captcha"):  # type: ignore[call-arg]
 
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
-        if message.channel.id in self.channels and message.channel.id not in map(itemgetter(0), self.waiting):
-            self.waiting.append((message.channel.id, message.id))
-        elif message.channel.id in self.channels:
-            for channel, _id in self.waiting:
-                if channel == message.channel.id:
-                    self.messages[message.id] = _id
-                    break
+        if message.channel.id in self.channels and config.VOTING_TAG in message.content:
+            self.messages.add(message.id)
 
     @commands.Cog.listener()
     async def on_message_delete(self, message: discord.Message):
-        if message.id in self.messages.keys():
-            for k, v in self.messages.copy().items():
-                if k == message.id:
-                    del self.messages[k]
-                    break
+        if message.id in self.messages:
+            self.messages.remove(message.id)
