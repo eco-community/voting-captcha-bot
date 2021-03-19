@@ -70,25 +70,28 @@ class CaptchaCog(commands.Cog, name="captcha"):  # type: ignore[call-arg]
                 await user.send(
                     "Enter the letters on the image to confirm vote, you have 5 minutes to answer.", file=file
                 )
+
+                try:
+                    answer = await self.bot.wait_for(
+                        "message",
+                        check=lambda m: m.guild is None and m.author == user,
+                        timeout=600,
+                    )
+                    if answer.content.lower() == key.lower():
+                        await user.send("Success! Your vote was recorded")
+                    else:
+                        # remove reaction if user failed captcha
+                        await reaction.remove(user)
+                        await user.send("You have failed the captcha, your vote was removed")
+
+                except asyncio.TimeoutError:
+                    # remove reaction if user ignores bot
+                    await reaction.remove(user)
+                    await user.send("You have failed to answer captcha in 5 minutes, your vote was removed")
+
             except discord.errors.Forbidden:
                 # remove reaction from users that forbid private messages
                 await reaction.remove(user)
-                return
-
-            try:
-                answer = await self.bot.wait_for(
-                    "message",
-                    check=lambda m: m.guild is None and m.author == user,
-                    timeout=600,
-                )
-                if answer.content.lower() == key.lower():
-                    await user.send("Success! Your vote was recorded")
-                else:
-                    await user.send("You have failed the captcha, your vote was removed")
-                    await reaction.remove(user)
-            except asyncio.TimeoutError:
-                await user.send("You have failed the captcha, your vote was removed")
-                return
 
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
