@@ -21,6 +21,8 @@ class CaptchaCog(commands.Cog, name="captcha"):  # type: ignore[call-arg]
         del self.letters[self.letters.index("I")]
         del self.letters[self.letters.index("l")]
         self.messages: Set[int] = set()
+        # TODO: remove this, temporary hack to keep state during bot restart
+        self.messages.add(822302708412186654)
 
     def get_captcha(self):
         letters = self.letters.copy()
@@ -60,10 +62,13 @@ class CaptchaCog(commands.Cog, name="captcha"):  # type: ignore[call-arg]
                 self.messages.add(payload.message_id)
 
     @commands.Cog.listener()
-    async def on_reaction_add(self, reaction: discord.Reaction, user: discord.Member):
-        if isinstance(user, discord.User) or reaction.message.guild is None:
-            return
-        if reaction.message.id in self.messages:
+    async def on_raw_reaction_add(self, payload: discord.RawReactionActionEvent):
+        if payload.message_id in self.messages:
+            channel = self.bot.get_channel(payload.channel_id)
+            message = await channel.fetch_message(payload.message_id)
+            user = self.bot.get_user(payload.user_id)
+            if not user:
+                user = await self.bot.fetch_user(payload.user_id)
             captcha, key = self.get_captcha()
             file = discord.File(captcha, filename="captcha.png")
             try:
@@ -81,17 +86,17 @@ class CaptchaCog(commands.Cog, name="captcha"):  # type: ignore[call-arg]
                         await user.send("Success! Your vote was recorded")
                     else:
                         # remove reaction if user failed captcha
-                        await reaction.remove(user)
+                        await message.remove_reaction(payload.emoji, user)
                         await user.send("You have failed the captcha, your vote was removed")
 
                 except asyncio.TimeoutError:
                     # remove reaction if user ignores bot
-                    await reaction.remove(user)
+                    await message.remove_reaction(payload.emoji, user)
                     await user.send("You have failed to answer captcha in 5 minutes, your vote was removed")
 
             except discord.errors.Forbidden:
                 # remove reaction from users that forbid private messages
-                await reaction.remove(user)
+                await message.remove_reaction(payload.emoji, user)
 
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
