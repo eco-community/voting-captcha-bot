@@ -11,18 +11,18 @@ from discord.ext import commands
 from PIL import Image, ImageDraw, ImageFont
 
 import config
+from constants import VOTE_ROLE
 
 
-class CaptchaCog(commands.Cog, name="captcha"):  # type: ignore[call-arg]
+class CaptchaCog(commands.Cog):
     def __init__(self, bot: commands.Bot):
-        self.bot = bot
+        self.bot: commands.Bot = bot
         self.channels = config.VOTING_CHANNELS
         self.letters = list(ascii_uppercase + ascii_lowercase + digits)
         del self.letters[self.letters.index("I")]
         del self.letters[self.letters.index("l")]
         self.messages: Set[int] = set()
-        # TODO: remove this, temporary hack to keep state during bot restart
-        self.messages.add(822302708412186654)
+        self.messages.update(config.MANUAL_INJECT_VOTING_MESSAGE_IDS)
 
     def get_captcha(self):
         letters = self.letters.copy()
@@ -64,11 +64,17 @@ class CaptchaCog(commands.Cog, name="captcha"):  # type: ignore[call-arg]
     @commands.Cog.listener()
     async def on_raw_reaction_add(self, payload: discord.RawReactionActionEvent):
         if payload.message_id in self.messages:
+            guild = self.bot.get_guild(payload.guild_id)
+            vote_role = discord.utils.find(lambda r: r.name == VOTE_ROLE, guild.roles)
             channel = self.bot.get_channel(payload.channel_id)
             message = await channel.fetch_message(payload.message_id)
-            user = self.bot.get_user(payload.user_id)
+            user = guild.get_member(payload.user_id)
             if not user:
-                user = await self.bot.fetch_user(payload.user_id)
+                user = await guild.fetch_member(payload.user_id)
+            # check if user has Vote role
+            if vote_role not in user.roles:
+                # remove reaction if user doesn't have a Voter role
+                return await message.remove_reaction(payload.emoji, user)
             captcha, key = self.get_captcha()
             file = discord.File(captcha, filename="captcha.png")
             try:
