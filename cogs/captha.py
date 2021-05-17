@@ -86,7 +86,7 @@ class CaptchaCog(commands.Cog):
                     answer = await self.bot.wait_for(
                         "message",
                         check=lambda m: m.guild is None and m.author == user,
-                        timeout=600,
+                        timeout=300,
                     )
                     if answer.content.lower() == key.lower():
                         await user.send("Success! Your vote was recorded")
